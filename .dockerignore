@@ -1,0 +1,15 @@
+.git
+.gitignore
+
+__pycache__/
+*.pyc
+
+tests/
+
+examples/
+
+.vscode/
+
+.idea/
+
+.env
