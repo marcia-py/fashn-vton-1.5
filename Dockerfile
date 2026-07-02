@@ -18,4 +18,4 @@ RUN pip install --no-deps -e .
 # Download all FASHN weights during build
 RUN python download_weights.py
 
-CMD ["python", "-u", "handler.py"]
+CMD ["python", "-u", "runpod/handler.py"]
