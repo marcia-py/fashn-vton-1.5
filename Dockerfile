@@ -1,7 +1,5 @@
-# CUDA 12.8 + PyTorch
-FROM runpod/pytorch:1.0.2-cu1281-torch280-ubuntu2404
+FROM pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime
 
-ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV HF_HOME=/workspace/huggingface
 
@@ -9,13 +7,15 @@ WORKDIR /workspace
 
 COPY . .
 
-RUN python -m pip install --upgrade pip
+RUN python -m pip install --upgrade pip setuptools wheel
 
-RUN python -m pip install --no-cache-dir -r requirements-runpod.txt
+RUN pip install -e .
 
-RUN pip install --no-deps -e .
+RUN pip install \
+    runpod \
+    boto3 \
+    requests
 
-# Download all FASHN weights during build
 RUN python download_weights.py
 
 CMD ["python", "-u", "handler.py"]
