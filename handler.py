@@ -10,6 +10,19 @@ from fashn_vton import TryOnPipeline
 
 print("Loading FASHN model...")
 
+import subprocess
+import os
+
+if not os.path.exists("./weights/model.safetensors"):
+    print("Downloading weights...")
+    subprocess.run(
+        [
+            "python",
+            "download_weights.py"
+        ],
+        check=True,
+    )
+
 pipeline = TryOnPipeline(
     weights_dir="./weights"
 )
