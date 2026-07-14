@@ -16,6 +16,4 @@ RUN pip install \
     boto3 \
     requests
 
-RUN python download_weights.py
-
 CMD ["python", "-u", "handler.py"]
