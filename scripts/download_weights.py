@@ -90,7 +90,10 @@ After downloading, use the pipeline:
     print()
     download_dwpose_models(weights_dir)
     print()
+try:
     download_human_parser()
+except Exception as e:
+    print(f"Skipping human parser download: {e}")
 
     print(f"""
 Download complete!
