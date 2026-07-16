@@ -8,7 +8,17 @@ import os
 from PIL import Image
 from fashn_vton import TryOnPipeline
 
-print("Loading FASHN model...")
+print("========== STARTING ==========")
+
+import traceback
+
+try:
+    print("Importing TryOnPipeline...")
+    from fashn_vton import TryOnPipeline
+    print("Import OK")
+except Exception:
+    traceback.print_exc()
+    raise
 
 import subprocess
 import os
