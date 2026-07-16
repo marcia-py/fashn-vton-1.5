@@ -10,4 +10,4 @@ RUN pip install -e .
 
 RUN pip install runpod boto3 requests
 
-CMD ["python", "-c", "print('Container started successfully')"]
+CMD ["python", "-u", "-X", "faulthandler", "handler.py"]
