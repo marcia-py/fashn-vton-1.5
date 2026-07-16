@@ -1,16 +1,14 @@
+import requests
 import runpod
 
-print("STEP 1 - handler.py loaded")
+print("STEP 1")
 
 
 def handler(job):
-    print("STEP 2 - handler called")
-
-    return {
-        "success": True
-    }
+    print("STEP 2")
+    return {"success": True}
 
 
-print("STEP 3 - starting RunPod server")
+print("STEP 3")
 
 runpod.serverless.start({"handler": handler})
