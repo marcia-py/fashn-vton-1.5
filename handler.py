@@ -1,43 +1,45 @@
 import io
+import os
+import subprocess
+import traceback
+
 import requests
 import runpod
 
-from utils import upload_to_r2
-import os
-
 from PIL import Image
+
+from utils import upload_to_r2
 from fashn_vton import TryOnPipeline
 
 print("========== STARTING ==========")
 
-import traceback
-
 try:
-    print("Importing TryOnPipeline...")
-    from fashn_vton import TryOnPipeline
-    print("Import OK")
+    if not os.path.exists("./weights/model.safetensors"):
+        print("Downloading weights...")
+
+        subprocess.run(
+            [
+                "python",
+                "download_weights.py",
+                "--weights-dir",
+                "./weights",
+            ],
+            check=True,
+        )
+
+    print("Loading FASHN model...")
+
+    pipeline = TryOnPipeline(
+        weights_dir="./weights"
+    )
+
+    print("Model loaded!")
+
 except Exception:
+    print("FAILED TO INITIALIZE MODEL")
     traceback.print_exc()
     raise
 
-import subprocess
-import os
-
-if not os.path.exists("./weights/model.safetensors"):
-    print("Downloading weights...")
-    subprocess.run(
-        [
-            "python",
-            "download_weights.py"
-        ],
-        check=True,
-    )
-
-pipeline = TryOnPipeline(
-    weights_dir="./weights"
-)
-
-print("Model loaded!")
 
 def load_image(url):
     response = requests.get(url, timeout=60)
@@ -46,36 +48,45 @@ def load_image(url):
 
 
 def handler(job):
-    job_input = job["input"]
+    try:
+        job_input = job["input"]
 
-    person_url = job_input["person_url"]
-    garment_url = job_input["garment_url"]
-    category = job_input["category"]
+        person_url = job_input["person_url"]
+        garment_url = job_input["garment_url"]
+        category = job_input["category"]
 
-    person = load_image(person_url)
-    garment = load_image(garment_url)
+        print(f"Person: {person_url}")
+        print(f"Garment: {garment_url}")
+        print(f"Category: {category}")
 
-    result = pipeline(
-        person_image=person,
-        garment_image=garment,
-        category=category,
-    )
+        person = load_image(person_url)
+        garment = load_image(garment_url)
 
-    output_path = "/tmp/result.png"
-    result.images[0].save(output_path)
+        result = pipeline(
+            person_image=person,
+            garment_image=garment,
+            category=category,
+        )
 
-    filename = upload_to_r2(
-        file_path=output_path,
-        bucket_name=os.environ["R2_BUCKET"],
-        endpoint_url=os.environ["R2_ENDPOINT"],
-        access_key_id=os.environ["R2_ACCESS_KEY"],
-        secret_access_key=os.environ["R2_SECRET_KEY"],
-    )
+        output_path = "/tmp/result.png"
+        result.images[0].save(output_path)
 
-    return {
-        "success": True,
-        "image_url": f"{os.environ['R2_PUBLIC_URL']}/{filename}"
-    }
+        filename = upload_to_r2(
+            file_path=output_path,
+            bucket_name=os.environ["R2_BUCKET"],
+            endpoint_url=os.environ["R2_ENDPOINT"],
+            access_key_id=os.environ["R2_ACCESS_KEY"],
+            secret_access_key=os.environ["R2_SECRET_KEY"],
+        )
+
+        return {
+            "success": True,
+            "image_url": f"{os.environ['R2_PUBLIC_URL']}/{filename}"
+        }
+
+    except Exception:
+        traceback.print_exc()
+        raise
 
 
 runpod.serverless.start({"handler": handler})
