@@ -16,4 +16,4 @@ RUN pip install \
     boto3 \
     requests
 
-CMD ["python", "-u", "handler.py"]
+CMD ["python", "-u", "-X", "faulthandler", "handler.py"]
