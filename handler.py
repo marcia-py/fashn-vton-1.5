@@ -74,10 +74,4 @@ def handler(job):
         traceback.print_exc()
         raise
 
-
-print("Python started successfully")
-import time
-
-while True:
-    print("Still alive...")
-    time.sleep(10)
+runpod.serverless.start({"handler": handler})
