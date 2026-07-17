@@ -75,4 +75,9 @@ def handler(job):
         raise
 
 
-runpod.serverless.start({"handler": handler})
+print("Python started successfully")
+import time
+
+while True:
+    print("Still alive...")
+    time.sleep(10)
