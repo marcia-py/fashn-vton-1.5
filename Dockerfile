@@ -1,9 +1,8 @@
-# Utiliza uma imagem estável com suporte completo a GPUs modernas (RTX 3090, L4)
 FROM pytorch/pytorch:2.4.0-cuda12.1-cudnn9-runtime
 
 WORKDIR /workspace
 
-# Instalar dependências essenciais do Linux para processamento de imagem (OpenCV/PIL)
+# Instalar dependências essenciais do Linux
 RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libsm6 \
@@ -14,21 +13,19 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Atualizar ferramentas de pacotes Python
+# Atualizar o gestor de pacotes do Python
 RUN python -m pip install --upgrade pip setuptools wheel
 
-# Copiar os ficheiros do repositório antes de instalar as dependências
-COPY . .
+# Copiar todos os ficheiros do repositório para o container
+COPY . /workspace/
 
-# Instalar as bibliotecas Python necessárias
-RUN pip install -e .
+# Instalar as bibliotecas obrigatórias diretamente (sem usar o "pip install -e .")
 RUN pip install runpod boto3 requests pillow
 
-# Dar permissão explícita de execução ao script do Handler
-RUN chmod +x handler.py
-
+# Configurar o caminho do Python para garantir que ele encontra os ficheiros locais
 ENV PYTHONPATH=/workspace
+ENV PYTHONUNBUFFERED=1
 
-# Comando de inicialização simplificado para evitar conflito de parsing no RunPod
-CMD ["python", "-u", "handler.py"]
+# Comando de arranque direto em formato de String (Shell Form) para estabilidade
+CMD python -u handler.py
 
