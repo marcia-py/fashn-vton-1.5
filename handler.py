@@ -1,11 +1,13 @@
 import io
 import os
+import gc
 import traceback
 import requests
 import runpod
+import torch  # Força o controlo da libertação de VRAM de forma segura
 from PIL import Image
 
-# Declaração das variáveis globais
+# Variáveis globais
 pipeline = None
 upload_to_r2 = None
 
@@ -24,7 +26,7 @@ def init_worker():
 
         print("Loading FASHN model weights...")
         pipeline = TryOnPipeline(weights_dir="./weights")
-        print("Model loaded successfully into GPU!")
+        print("Model loaded successfully into GPU VRAM!")
         
     except Exception as e:
         print("!!! CRITICAL ERROR DURING WORKER INITIALIZATION !!!")
@@ -37,29 +39,30 @@ def load_image(url):
     return Image.open(io.BytesIO(response.content)).convert("RGB")
 
 def handler(job):
-    # Proteção absoluta: envolvemos TUDO num try/except para que o worker NUNCA morra
+    global pipeline, upload_to_r2
+    
     try:
         job_input = job["input"]
         person_url = job_input["person_url"]
         garment_url = job_input["garment_url"]
         category = job_input["category"]
 
-        print(f"Executing Job - Person: {person_url} | Garment: {garment_url} | Cat: {category}")
+        print(f"Executing Job ID: {job.get('id')} - Category: {category}")
 
         person = load_image(person_url)
         garment = load_image(garment_url)
 
-        # Processamento do Modelo FASHN VTON 1.5
+        # Executa a inferência do Modelo FASHN VTON 1.5
         result = pipeline(
             person_image=person,
             garment_image=garment,
             category=category,
         )
 
-        print("Pipeline finished executing. Extracting output image...")
+        print("Pipeline finished executing. Extracting output image object...")
         output_path = "/tmp/result.png"
 
-        # Correção Robusta: Verifica se o output é uma lista ou um objeto de imagem direto
+        # Trata o retorno de forma dinâmica de acordo com a variação do objeto
         if hasattr(result, "images") and isinstance(result.images, list):
             final_image = result.images[0]
         elif isinstance(result, list):
@@ -69,11 +72,11 @@ def handler(job):
         else:
             final_image = result
 
-        # Gravação temporária no sistema de ficheiros do container
+        # Guarda a imagem localmente temporária
         final_image.save(output_path)
-        print("Image saved successfully to local disk. Uploading to R2...")
+        print("Image saved to local scratch disk. Executing cloud upload...")
 
-        # Envio para o Cloudflare R2
+        # Upload síncrono para o Cloudflare R2
         filename = upload_to_r2(
             file_path=output_path,
             bucket_name=os.environ["R2_BUCKET"],
@@ -83,8 +86,24 @@ def handler(job):
         )
 
         public_url = f"{os.environ['R2_PUBLIC_URL']}/{filename}"
-        print(f"Upload complete! Public URL: {public_url}")
+        print(f"Upload completed successfully. Link: {public_url}")
 
+        # --- GESTÃO SEGURA DE MEMÓRIA PÓS-TAREFA ---
+        # Libertamos referências de memória locais para evitar Out of Memory na tarefa seguinte
+        del person
+        del garment
+        del final_image
+        if os.path.exists(output_path):
+            os.remove(output_path)
+            
+        # Força o Python e o CUDA a limparem lixo sem fechar o processo principal
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            
+        print("Memory footprint cleaned. Returning result back to queue...")
+
+        # Conclusão segura da resposta
         return {
             "success": True,
             "image_url": public_url
@@ -96,15 +115,20 @@ def handler(job):
         print("=========================================")
         traceback.print_exc()
         
-        # Devolvemos o erro como um dicionário estruturado em vez de rebentar com o Python
+        # Limpeza mesmo em caso de falha catastrófica
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            
         return {
             "success": False,
             "error": str(e),
             "traceback": traceback.format_exc()
         }
 
-# Inicialização do RunPod Serverless
+# Execução do Orquestrador Serverless
 runpod.serverless.start({
     "handler": handler,
     "init": init_worker
 })
+
