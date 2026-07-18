@@ -19,18 +19,17 @@ RUN python -m pip install --upgrade pip setuptools wheel
 # Copiar todos os ficheiros do repositório para o container
 COPY . /workspace/
 
-# Instala primeiro o seu pacote local
+# 1. Instala o seu pacote local e as suas dependências padrão primeiro
 RUN pip install -e .
 
-# Remove qualquer versão errada ou residual do OpenCV e força a versão HEADLESS
-RUN pip uninstall -y opencv-python opencv-python-headless
-RUN pip install opencv-python-headless
+# 2. CORREÇÃO CRÍTICA (Executada depois do -e .): 
+# Força a remoção de qualquer OpenCV ou ONNX com binds de GPU corrompidos
+RUN pip uninstall -y opencv-python opencv-python-headless onnxruntime onnxruntime-gpu
 
-# Remove versões incompatíveis do ONNX e força a instalação correta para CUDA 12.x
-RUN pip uninstall -y onnxruntime onnxruntime-gpu
-RUN pip install onnxruntime-gpu --extra-index-url https://visualstudio.com
+# 3. Instala as versões limpas e compatíveis com Servidores
+RUN pip install opencv-python-headless onnxruntime
 
-# Instala as dependências oficiais por cima para garantir estabilidade absoluta
+# 4. Garante as ferramentas do RunPod no topo do ambiente
 RUN pip install --force-reinstall runpod
 RUN pip install boto3 requests pillow transformers
 
@@ -41,3 +40,4 @@ ENV PYTHONPATH=/workspace
 ENV PYTHONUNBUFFERED=1
 
 CMD ["python", "-u", "handler.py"]
+
