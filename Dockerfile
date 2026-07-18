@@ -19,19 +19,25 @@ RUN python -m pip install --upgrade pip setuptools wheel
 # Copiar todos os ficheiros do repositório para o container
 COPY . /workspace/
 
-# 1. Instala o seu pacote local e as suas dependências padrão primeiro
+# 1. Instala o teu pacote local e as suas dependências padrão primeiro
 RUN pip install -e .
 
-# 2. CORREÇÃO CRÍTICA (Executada depois do -e .): 
-# Força a remoção de qualquer OpenCV ou ONNX com binds de GPU corrompidos
+# 2. Força a remoção de qualquer OpenCV ou ONNX com binds de GPU corrompidos
 RUN pip uninstall -y opencv-python opencv-python-headless onnxruntime onnxruntime-gpu
 
 # 3. Instala as versões limpas e compatíveis com Servidores
 RUN pip install opencv-python-headless onnxruntime
 
-# 4. Garante as ferramentas do RunPod no topo do ambiente
+# 4. Garante as ferramentas do RunPod e HuggingFace para downloads rápidos
 RUN pip install --force-reinstall runpod
-RUN pip install boto3 requests pillow transformers
+RUN pip install boto3 requests pillow transformers huggingface_hub
+
+# ========================================================
+# 5. DESCARGA AUTOMÁTICA DOS PESOS (Executada durante o Build)
+# ========================================================
+RUN mkdir -p /workspace/weights
+RUN python scripts/download_weights.py --weights-dir /workspace/weights
+# ========================================================
 
 # Dar permissão explícita de execução ao script do Handler
 RUN chmod +x handler.py
@@ -40,4 +46,3 @@ ENV PYTHONPATH=/workspace
 ENV PYTHONUNBUFFERED=1
 
 CMD ["python", "-u", "handler.py"]
-
