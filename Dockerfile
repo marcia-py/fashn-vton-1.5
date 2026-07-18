@@ -1,4 +1,5 @@
-FROM pytorch/pytorch:2.4.0-cuda12.1-cudnn9-runtime
+# Alterado para uma imagem estável do PyTorch 2.5.1 que possui suporte nativo a DTensor
+FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
 
 WORKDIR /workspace
 
@@ -22,13 +23,13 @@ COPY . /workspace/
 # Instala primeiro o seu pacote local
 RUN pip install -e .
 
-# Remove qualquer versão residual do OpenCV comum e força a versão HEADLESS (Crucial para o erro libGL)
+# Remove qualquer versão residual do OpenCV comum e força a versão HEADLESS
 RUN pip uninstall -y opencv-python opencv-python-headless
 RUN pip install opencv-python-headless
 
-# Instala as dependências oficiais por cima para garantir estabilidade
+# Instala as dependências oficiais por cima para garantir estabilidade absoluta
 RUN pip install --force-reinstall runpod
-RUN pip install boto3 requests pillow torch
+RUN pip install boto3 requests pillow transformers
 
 # Dar permissão explícita de execução ao script do Handler
 RUN chmod +x handler.py
@@ -37,4 +38,3 @@ ENV PYTHONPATH=/workspace
 ENV PYTHONUNBUFFERED=1
 
 CMD ["python", "-u", "handler.py"]
-
