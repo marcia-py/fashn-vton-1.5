@@ -4,34 +4,19 @@ import gc
 import traceback
 import requests
 import runpod
-import torch  # Força o controlo da libertação de VRAM de forma segura
+import torch
 from PIL import Image
 
-# Variáveis globais
+# Variáveis globais em estado latente
 pipeline = None
 upload_to_r2 = None
 
 print("========== CONTAINER BOOT SUCCESSFUL ==========")
 
 def init_worker():
-    global pipeline, upload_to_r2
-    print("========== STARTING RUNPOD INITIALIZATION ==========")
-    
-    try:
-        print("Importing project modules...")
-        from utils import upload_to_r2 as r2_uploader
-        from fashn_vton import TryOnPipeline
-        
-        upload_to_r2 = r2_uploader
-
-        print("Loading FASHN model weights...")
-        pipeline = TryOnPipeline(weights_dir="./weights")
-        print("Model loaded successfully into GPU VRAM!")
-        
-    except Exception as e:
-        print("!!! CRITICAL ERROR DURING WORKER INITIALIZATION !!!")
-        traceback.print_exc()
-        raise e
+    # Deixamos o init vazio para o container arrancar sem risco de timeout
+    print("========== RUNPOD SERVERLESS WORKER BOOTED ==========")
+    return True
 
 def load_image(url):
     response = requests.get(url, timeout=60)
@@ -42,6 +27,28 @@ def handler(job):
     global pipeline, upload_to_r2
     
     try:
+        # 1. Carregamento Tardio (Lazy Loading) do Modelo no primeiro pedido
+        if pipeline is None:
+            print("========== FIRST REQUEST: INITIALIZING MODEL PIPELINE ==========")
+            print("Importing project modules...")
+            from utils import upload_to_r2 as r2_uploader
+            from fashn_vton import TryOnPipeline
+            
+            upload_to_r2 = r2_uploader
+
+            # Verifica se a pasta existe antes de carregar para evitar erros silenciosos
+            weights_path = "./weights"
+            print(f"Checking weights directory at: {os.path.abspath(weights_path)}")
+            if os.path.exists(weights_path):
+                print(f"Files inside weights: {os.listdir(weights_path)}")
+            else:
+                print("WARNING: weights directory does not exist locally!")
+
+            print("Loading FASHN model weights into GPU VRAM...")
+            pipeline = TryOnPipeline(weights_dir=weights_path)
+            print("Model pipeline loaded successfully!")
+
+        # 2. Processamento normal do Job
         job_input = job["input"]
         person_url = job_input["person_url"]
         garment_url = job_input["garment_url"]
@@ -62,21 +69,19 @@ def handler(job):
         print("Pipeline finished executing. Extracting output image object...")
         output_path = "/tmp/result.png"
 
-        # Trata o retorno de forma dinâmica de acordo com a variação do objeto
         if hasattr(result, "images") and isinstance(result.images, list):
-            final_image = result.images[0]
+            final_image = result.images[0] if len(result.images) > 0 else result.images
         elif isinstance(result, list):
-            final_image = result[0]
+            final_image = result[0] if len(result) > 0 else result
         elif hasattr(result, "images"):
             final_image = result.images
         else:
             final_image = result
 
-        # Guarda a imagem localmente temporária
         final_image.save(output_path)
         print("Image saved to local scratch disk. Executing cloud upload...")
 
-        # Upload síncrono para o Cloudflare R2
+        # Upload para o Cloudflare R2
         filename = upload_to_r2(
             file_path=output_path,
             bucket_name=os.environ["R2_BUCKET"],
@@ -88,22 +93,14 @@ def handler(job):
         public_url = f"{os.environ['R2_PUBLIC_URL']}/{filename}"
         print(f"Upload completed successfully. Link: {public_url}")
 
-        # --- GESTÃO SEGURA DE MEMÓRIA PÓS-TAREFA ---
-        # Libertamos referências de memória locais para evitar Out of Memory na tarefa seguinte
-        del person
-        del garment
-        del final_image
+        # Limpeza de VRAM
+        del person, garment, final_image
         if os.path.exists(output_path):
             os.remove(output_path)
-            
-        # Força o Python e o CUDA a limparem lixo sem fechar o processo principal
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
-            
-        print("Memory footprint cleaned. Returning result back to queue...")
 
-        # Conclusão segura da resposta
         return {
             "success": True,
             "image_url": public_url
@@ -115,7 +112,6 @@ def handler(job):
         print("=========================================")
         traceback.print_exc()
         
-        # Limpeza mesmo em caso de falha catastrófica
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
@@ -126,9 +122,7 @@ def handler(job):
             "traceback": traceback.format_exc()
         }
 
-# Execução do Orquestrador Serverless
 runpod.serverless.start({
     "handler": handler,
     "init": init_worker
 })
-
