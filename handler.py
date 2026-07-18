@@ -4,26 +4,33 @@ import traceback
 import requests
 import runpod
 from PIL import Image
-from utils import upload_to_r2
-from fashn_vton import TryOnPipeline
 
-# Declarar a variável do pipeline como global
+# Declaração das variáveis globais
 pipeline = None
+upload_to_r2 = None
 
-print("========== WORKER STARTING ==========")
+print("========== CONTAINER BOOT SUCCESSFUL ==========")
 
-# Esta função corre uma única vez quando o RunPod ativa o worker, dando tempo para estabilizar
 def init_worker():
-    global pipeline
-    print("========== LOADING FASHN MODEL WEIGHTS ==========")
+    global pipeline, upload_to_r2
+    print("========== STARTING RUNPOD INITIALIZATION ==========")
+    
     try:
-        # Carrega o modelo de forma segura dentro do ambiente controlado do RunPod
+        print("Importing project modules...")
+        # Imports movidos para dentro do init para capturar erros ocultos nos logs
+        from utils import upload_to_r2 as r2_uploader
+        from fashn_vton import TryOnPipeline
+        
+        upload_to_r2 = r2_uploader
+
+        print("Loading FASHN model weights...")
         pipeline = TryOnPipeline(weights_dir="./weights")
         print("Model loaded successfully into GPU!")
-    except Exception:
-        print("FAILED TO INITIALIZE MODEL DEPENDENCIES")
+        
+    except Exception as e:
+        print("!!! CRITICAL ERROR DURING WORKER INITIALIZATION !!!")
         traceback.print_exc()
-        raise
+        raise e
 
 def load_image(url):
     response = requests.get(url, timeout=60)
@@ -42,7 +49,7 @@ def handler(job):
         person = load_image(person_url)
         garment = load_image(garment_url)
 
-        # Utiliza o pipeline global já inicializado
+        # Processamento do Modelo
         result = pipeline(
             person_image=person,
             garment_image=garment,
@@ -52,6 +59,7 @@ def handler(job):
         output_path = "/tmp/result.png"
         result.images[0].save(output_path)
 
+        # Upload para o Cloudflare R2
         filename = upload_to_r2(
             file_path=output_path,
             bucket_name=os.environ["R2_BUCKET"],
@@ -64,11 +72,11 @@ def handler(job):
             "success": True,
             "image_url": f"{os.environ['R2_PUBLIC_URL']}/{filename}"
         }
-    except Exception:
+    except Exception as e:
         traceback.print_exc()
-        raise
+        raise e
 
-# Configuração recomendada pelo RunPod para detetar corretamente o handler
+# Inicialização do RunPod Serverless
 runpod.serverless.start({
     "handler": handler,
     "init": init_worker
