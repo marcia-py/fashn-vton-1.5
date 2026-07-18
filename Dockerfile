@@ -2,7 +2,6 @@ FROM pytorch/pytorch:2.4.0-cuda12.1-cudnn9-runtime
 
 WORKDIR /workspace
 
-# Instalar dependências essenciais do Linux
 RUN apt-get update && apt-get install -y \
     libglib2.0-0 \
     libsm6 \
@@ -13,19 +12,17 @@ RUN apt-get update && apt-get install -y \
     git \
     && rm -rf /var/lib/apt/lists/*
 
-# Atualizar o gestor de pacotes do Python
 RUN python -m pip install --upgrade pip setuptools wheel
 
-# Copiar todos os ficheiros do repositório para o container
 COPY . /workspace/
 
-# Instalar as bibliotecas obrigatórias diretamente (sem usar o "pip install -e .")
+# Instalação das bibliotecas e do pacote local de forma explícita
 RUN pip install runpod boto3 requests pillow
+RUN pip install -e .
 
-# Configurar o caminho do Python para garantir que ele encontra os ficheiros locais
 ENV PYTHONPATH=/workspace
 ENV PYTHONUNBUFFERED=1
 
-# Comando de arranque direto em formato de String (Shell Form) para estabilidade
-CMD python -u handler.py
+CMD ["python", "-u", "handler.py"]
+
 
