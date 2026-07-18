@@ -1,4 +1,3 @@
-# Alterado para uma imagem estável do PyTorch 2.5.1 que possui suporte nativo a DTensor
 FROM pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
 
 WORKDIR /workspace
@@ -23,9 +22,13 @@ COPY . /workspace/
 # Instala primeiro o seu pacote local
 RUN pip install -e .
 
-# Remove qualquer versão residual do OpenCV comum e força a versão HEADLESS
+# Remove qualquer versão errada ou residual do OpenCV e força a versão HEADLESS
 RUN pip uninstall -y opencv-python opencv-python-headless
 RUN pip install opencv-python-headless
+
+# Remove versões incompatíveis do ONNX e força a instalação correta para CUDA 12.x
+RUN pip uninstall -y onnxruntime onnxruntime-gpu
+RUN pip install onnxruntime-gpu --extra-index-url https://visualstudio.com
 
 # Instala as dependências oficiais por cima para garantir estabilidade absoluta
 RUN pip install --force-reinstall runpod
