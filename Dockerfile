@@ -19,10 +19,14 @@ RUN python -m pip install --upgrade pip setuptools wheel
 # Copiar todos os ficheiros do repositório para o container
 COPY . /workspace/
 
-# 1. Instala primeiro o seu pacote local
+# Instala primeiro o seu pacote local
 RUN pip install -e .
 
-# 2. Instala as dependências oficiais por cima para resolver conflitos de nomes (Crucial)
+# Remove qualquer versão residual do OpenCV comum e força a versão HEADLESS (Crucial para o erro libGL)
+RUN pip uninstall -y opencv-python opencv-python-headless
+RUN pip install opencv-python-headless
+
+# Instala as dependências oficiais por cima para garantir estabilidade
 RUN pip install --force-reinstall runpod
 RUN pip install boto3 requests pillow torch
 
@@ -33,3 +37,4 @@ ENV PYTHONPATH=/workspace
 ENV PYTHONUNBUFFERED=1
 
 CMD ["python", "-u", "handler.py"]
+
