@@ -43,6 +43,7 @@ def handler(job):
         category_mapping = {
             "top": "tops",
             "bottom": "bottoms",
+            "one-piece": "one-pieces",
             "auto": "tops"
         }
         final_category = category_mapping.get(render_category, "tops")
