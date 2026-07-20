@@ -60,7 +60,7 @@ def handler(job):
             category=final_category,
             num_timesteps=50,
             guidance_scale=1.8,
-            segmentation_free=True
+            segmentation_free=False
         )
 
         print("Pipeline finished executing. Extracting output image object...")
