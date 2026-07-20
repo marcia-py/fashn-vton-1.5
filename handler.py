@@ -34,15 +34,18 @@ def handler(job):
             pipeline = TryOnPipeline(weights_dir="./weights")
             print("Model pipeline loaded successfully!")
 
+        # ========================================================
+        # INÍCIO DO BLOCO SUBSTITUÍDO COM A SUA LÓGICA CONDICIONAL
+        # ========================================================
         job_input = job["input"]
         person_url = job_input["person_url"]
         garment_url = job_input["garment_url"]
-        render_category = job_input["category"] # "top", "bottom", ou "auto"
+        render_category = job_input["category"] # Recebe "top", "bottom" ou "auto" do Render
 
-        # Adapta o formato de texto do Render para o formato exigido pelo seu pipeline.py
+        # Correção do mapeamento para alinhar perfeitamente com o pipeline e o parser interno
         category_mapping = {
             "top": "tops",
-            "bottom": "bottoms",
+            "bottom": "bottoms",  
             "one-piece": "one-pieces",
             "auto": "tops"
         }
@@ -53,15 +56,23 @@ def handler(job):
         person = load_image(person_url)
         garment = load_image(garment_url)
 
-        # Chamada exata baseada nas definições do seu pipeline.py (__call__)
+        # A SUA LÓGICA CONDICIONAL: Ativa True apenas para partes de cima (tops)
+        # Para calças (bottoms), fica False, forçando a criação da máscara nas pernas
+        segmentation_setting = final_category == "tops"
+
+        # Execução com 40 passos (ótimo equilíbrio de nitidez) e a sua lógica de segmentação
         result = pipeline(
             person_image=person,
             garment_image=garment,
             category=final_category,
-            num_timesteps=50,
+            garment_photo_type=photo_type_setting,
+            num_timesteps=40,
             guidance_scale=1.8,
-            segmentation_free=False
+            segmentation_free=segmentation_setting
         )
+        # ========================================================
+        # FIM DO BLOCO SUBSTITUÍDO
+        # ========================================================
 
         print("Pipeline finished executing. Extracting output image object...")
         output_path = "/tmp/result.png"
@@ -119,3 +130,4 @@ runpod.serverless.start({
     "handler": handler,
     "init": init_worker
 })
+
