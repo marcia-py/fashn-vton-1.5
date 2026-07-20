@@ -57,7 +57,10 @@ def handler(job):
         result = pipeline(
             person_image=person,
             garment_image=garment,
-            category=final_category
+            category=final_category,
+            num_timesteps=50,
+            guidance_scale=1.8,
+            segmentation_free=True
         )
 
         print("Pipeline finished executing. Extracting output image object...")
